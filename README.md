@@ -1,4 +1,4 @@
-markdown_content = """# Industrial Anomaly Detection: Semiconductor Inspection
+# Industrial Anomaly Detection: Semiconductor Inspection
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-ee4c2c.svg)
