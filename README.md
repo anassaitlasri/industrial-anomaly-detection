@@ -45,7 +45,7 @@ The project systematically explores three paradigms, moving from a standard Deep
 
 The system successfully generates detailed anomaly heatmaps to locate structural and textural defects on the transistors without relying on supervised masks during training.
 
-![Anomaly Detection Results](outputs/ae_visualizations/sample_99.png)
+![Anomaly Detection Results](outputs/visualizations/sample_99.png)
 *Example of PatchCore localization: Original Image vs Ground Truth Mask vs Predicted Heatmap vs Predicted Mask.*
 
 ## 📁 Repository Structure
@@ -64,7 +64,7 @@ The system successfully generates detailed anomaly heatmaps to locate structural
 │       └── visualization.py      # Heatmap generation
 ├── scripts/                      # Execution wrappers
 ├── outputs/
-│   └── ae_visualizations/        # Automatically generated heatmap results
+│   └── visualizations/        # Automatically generated heatmap results
 ├── README.md
 ```
 
@@ -128,8 +128,3 @@ Contact
 
 If you have any questions or comments about the dataset, feel free to contact us via: paul.bergmann@mvtec.com, fauser@mvtec.com, sattlegger@mvtec.com, steger@mvtec.com
 """
-
-with open("README.md", "w", encoding="utf-8") as f:
-f.write(markdown_content)
-
-print("[file-tag: code-generated-file-readme-md]")
