@@ -60,7 +60,17 @@ class MVTecTransistorDataset(Dataset):
         self.category_dir = self._resolve_category_dir(Path(root))
         self.split = split
         self.image_size = image_size
-        self.image_transform = image_transform or self.default_image_transform(image_size)
+        
+        # CORRECTION : Sélection dynamique de la transformation selon le split
+        if image_transform is not None:
+            self.image_transform = image_transform
+        else:
+            self.image_transform = (
+                self.default_train_transform(image_size)
+                if split == "train"
+                else self.default_eval_transform(image_size)
+            )
+            
         self.mask_transform = mask_transform or self.default_mask_transform(image_size)
         self.samples = self._discover_samples()
 
@@ -75,24 +85,35 @@ class MVTecTransistorDataset(Dataset):
         return root if root.name == "transistor" else root / "transistor"
 
     @staticmethod
-    def default_image_transform(image_size: int) -> transforms.Compose:
+    def default_train_transform(image_size: int) -> transforms.Compose:
+        """Transformations pour l'entraînement (avec augmentations de données)."""
         return transforms.Compose(
             [
                 transforms.Resize((image_size, image_size), antialias=True),
-
                 transforms.RandomHorizontalFlip(p=0.5),
                 transforms.RandomVerticalFlip(p=0.2),
                 transforms.RandomRotation(degrees=5),
-
                 transforms.ColorJitter(
                     brightness=0.1,
                     contrast=0.1,
                     saturation=0.1,
                     hue=0.02,
                 ),
-
                 transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=(0.485, 0.456, 0.406),
+                    std=(0.229, 0.224, 0.225),
+                ),
+            ]
+        )
 
+    @staticmethod
+    def default_eval_transform(image_size: int) -> transforms.Compose:
+        """Transformations pour le test/évaluation (déterministe, sans augmentation)."""
+        return transforms.Compose(
+            [
+                transforms.Resize((image_size, image_size), antialias=True),
+                transforms.ToTensor(),
                 transforms.Normalize(
                     mean=(0.485, 0.456, 0.406),
                     std=(0.229, 0.224, 0.225),
