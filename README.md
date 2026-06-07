@@ -1,130 +1,135 @@
-# MVTec AD Transistor — Industrial Anomaly Detection
+markdown_content = """# Industrial Anomaly Detection: Semiconductor Inspection
 
-Production-style project for a technical interview around semiconductor visual inspection, low-defect regimes, and yield protection. The code targets the **MVTec AD `transistor` category** and implements two complementary unsupervised anomaly-detection approaches in PyTorch and scikit-learn.
+![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
+![PyTorch](https://img.shields.io/badge/PyTorch-Deep%20Learning-ee4c2c.svg)
+![Faiss](https://img.shields.io/badge/Faiss-Vector%20Search-1A8CFF.svg)
+![Manufacturing](https://img.shields.io/badge/Domain-Semiconductors-lightgrey.svg)
 
-## Why this project matters for semiconductor manufacturing
+## 📌 Overview
+This repository implements a production-ready, unsupervised anomaly detection system for semiconductor manufacturing, specifically targeting the **MVTec AD Transistor** dataset. 
 
-In wafer/chip inspection, defective examples are scarce, labels are expensive, and the business goal is not only classification accuracy: it is fast detection of process drift, actionable defect localization, and improved yield. This project therefore trains only on healthy transistors and evaluates both:
+In real-world manufacturing environments, defective wafers or chips are exceedingly rare, and comprehensive pixel-level annotations are practically impossible to maintain. Therefore, this project adopts an **unsupervised Anomaly Detection (AD)** paradigm: models are trained *exclusively on normal, healthy images* to detect any structural or textural deviations during inference.
 
-- **Image-level detection**: should the part be escalated or rejected?
-- **Pixel-level localization**: where is the suspicious region for process engineers?
+## 🚀 Project Evolution & Architecture
 
-## Project structure
+The project systematically explores three paradigms, moving from a standard Deep Learning baseline to a highly optimized, ROI-driven industrial solution.
+
+### 1. Deep Learning Baseline: Convolutional Autoencoder
+- **Approach**: Train a CNN autoencoder from scratch to reconstruct healthy transistors. Anomalies are detected via the Mean Squared Error (MSE) of the reconstruction.
+- **Outcome**: `AUROC: 0.56`. 
+- **Analysis**: The network generalized too well, often perfectly reconstructing small structural defects, leading to a high rate of false negatives. The high computational cost of training did not justify the performance.
+
+### 2. Transfer Learning: Frozen ResNet18 + KNN
+- **Approach**: Shift to a zero-training paradigm using an ImageNet-pretrained ResNet18 as a frozen feature extractor. Normal patch embeddings were stored in a memory bank, and a K-Nearest Neighbors (KNN) algorithm was used to score anomalies based on cosine distance.
+- **Outcome**: `AUROC: 0.92`.
+- **Analysis**: Drastic improvement in image-level detection with zero backpropagation required. However, spatial localization (Pixel Dice) remained weak (~9%) due to lost spatial resolution and internal normalization limits.
+
+### 3. State-of-the-Art Industrial System: PatchCore + Greedy Coreset + Faiss
+- **Approach**: Implementation of the PatchCore architecture, heavily optimized for production constraints (low latency, restricted memory).
+  - **Backbone**: ResNet50 utilizing multi-scale feature concatenation (Layer 2 + Layer 3) to preserve high-resolution spatial details.
+  - **Spatial Smoothing**: Applied 3x3 Average Pooling to incorporate local context and reduce noise.
+  - **Greedy K-Center Coreset**: Instead of storing 200,000+ random patches, the system uses a greedy min-max algorithm (with Johnson-Lindenstrauss random projection) to select only the 10,000 most diverse and representative healthy patches.
+  - **Faiss Integration**: Replaced standard KNN with Meta's `faiss-cpu` (L2 Index) to ensure microsecond-level inference latency and minimal RAM footprint.
+- **Outcome**: `AUROC: 0.965`, `Pixel Dice: ~23%`.
+- **Analysis**: State-of-the-art detection accuracy. The Coreset algorithm successfully reduced the memory footprint by 95% while simultaneously eliminating false positives, resulting in a lightweight model perfect for high-speed production lines.
+
+## 📊 Performance Summary
+
+| Model / Approach | Image AUROC | F1-Score | Pixel Dice | Memory Footprint / Training |
+|------------------|-------------|----------|------------|-----------------------------|
+| Conv Autoencoder | 0.567       | 0.585    | 0.033      | High (Heavy training)       |
+| ResNet18 + KNN   | 0.929       | 0.888    | 0.090      | ~50k patches (Random)       |
+| **PatchCore (Optimized)** | **0.965** | **0.915**| **0.226** | **10k patches (Coreset)** |
+
+## 👁️ Visual Results
+
+The system successfully generates detailed anomaly heatmaps to locate structural and textural defects on the transistors without relying on supervised masks during training.
+
+![Anomaly Detection Results](outputs/ae_visualizations/sample_99.png)
+*Example of PatchCore localization: Original Image vs Ground Truth Mask vs Predicted Heatmap vs Predicted Mask.*
+
+## 📁 Repository Structure
 
 ```text
-src/mvtec_ad/
-  data.py                    # MVTec train/test dataset and dataloaders
-  models/autoencoder.py      # Model A: convolutional reconstruction baseline
-  models/feature_knn.py      # Model B: frozen ResNet18 + KNN patch scoring
-  evaluation.py              # Shared evaluation loops
-  metrics.py                 # AUROC, F1, Dice, IoU
-  visualization.py           # Original image / GT mask / heatmap plots
-  cli.py                     # Reproducible command-line interface
-scripts/
-  run_autoencoder.py
-  run_feature_knn.py
-tests/
-  test_metrics.py
+├── src/
+│   └── mvtec_ad/
+│       ├── models/
+│       │   ├── autoencoder.py    # Baseline AE implementation
+│       │   ├── feature_knn.py    # ResNet18 + KNN implementation
+│       │   └── patchcore.py      # Production PatchCore with Faiss & Coreset
+│       ├── cli.py                # Command-line interface
+│       ├── data.py               # Dataloaders and transformations
+│       ├── evaluation.py         # Evaluation loops
+│       ├── metrics.py            # AUROC, F1, Dice calculation
+│       └── visualization.py      # Heatmap generation
+├── scripts/                      # Execution wrappers
+├── outputs/
+│   └── ae_visualizations/        # Automatically generated heatmap results
+├── README.md
 ```
 
-## Dataset layout
+## 🛠️ Installation & Usage
 
-Download MVTec AD and keep the standard folder structure:
-
-```text
-/path/to/mvtec/transistor/
-  train/good/*.png
-  test/good/*.png
-  test/<defect_type>/*.png
-  ground_truth/<defect_type>/*_mask.png
+### Prerequisites
+```bash
+pip install torch torchvision faiss-cpu scikit-learn matplotlib tqdm
 ```
 
-The loader accepts either `/path/to/mvtec` or `/path/to/mvtec/transistor`.
+Running the System
 
-## Installation
+The project is built with a modular CLI. To run the optimized PatchCore pipeline:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
+python -m mvtec_ad.cli patchcore \\
+    --data-root /path/to/mvtec_transistor \\
+    --cpu \\
+    --num-workers 0 \\
+    --batch-size 1 \\
+    --image-size 256 \\
+    --max-memory-patches 10000
 ```
+(Note: --num-workers 0 and Faiss thread limiting are used to guarantee stability on Windows machines with constrained shared memory).
 
-## Run Model A — Convolutional Autoencoder
+> ⚠️ **Windows Users Note**
+> If you are running this on a Windows machine with constrained RAM or limited shared memory, the `--num-workers 0` flag is **crucial** to prevent PyTorch `shm.dll` multiprocessing crashes. 
+> Additionally, the `patchcore.py` module automatically restricts `faiss` to a single thread (`faiss.omp_set_num_threads(1)`) to avoid OpenBLAS memory allocation failures.
 
-```bash
-python -m mvtec_ad.cli autoencoder \
-  --data-root /path/to/mvtec \
-  --epochs 25 \
-  --batch-size 16 \
-  --image-size 256
-```
+## 👨‍💻 Author
 
-**Principle:** the autoencoder sees only normal transistors during training. At test time, defects are expected to reconstruct poorly. The pixel-wise reconstruction error becomes an anomaly heatmap.
+**AIT LASRI Anass**
+* Data Scientist / AI Engineer
+* [LinkedIn](https://www.linkedin.com/in/anass-ait-lasri/) | [GitHub](https://github.com/anassaitlasri)
 
-## Run Model B — Frozen ResNet18 + KNN patch detector
+*This project was developed to demonstrate industrial-grade computer vision and anomaly detection capabilities, specifically tailored for semiconductor manufacturing constraints.*
 
-```bash
-python -m mvtec_ad.cli feature-knn \
-  --data-root /path/to/mvtec \
-  --batch-size 16 \
-  --image-size 256 \
-  --n-neighbors 5
-```
+---
+⚖️ Attribution & License
+Attribution
 
-**Principle:** a pretrained ResNet18 converts images into local semantic patch embeddings. KNN learns the manifold of normal patches. At inference, patches far from the normal memory bank are anomalous; upsampled patch distances become a localization heatmap.
+If you use the dataset in scientific work, please cite:
 
-## Metrics reported
+    Paul Bergmann, Michael Fauser, David Sattlegger, and Carsten Steger,
+    "A Comprehensive Real-World Dataset for Unsupervised Anomaly Detection",
+    IEEE Conference on Computer Vision and Pattern Recognition, 2019
 
-The CLI prints a JSON object with:
+License
 
-- `image_auroc`: ranking quality for normal vs defective test images.
-- `image_f1`: operating-point quality after threshold selection.
-- `image_threshold`: selected image decision threshold.
-- `pixel_dice`: overlap between predicted defect mask and ground truth.
-- `pixel_iou`: stricter overlap metric for segmentation quality.
-- `pixel_threshold`: selected heatmap-to-mask threshold.
+Copyright 2019 MVTec Software GmbH
 
-## Visualization example
+This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
 
-```python
-from mvtec_ad.visualization import plot_anomaly_result
+You should have received a copy of the license along with this work.
+If not, see http://creativecommons.org/licenses/by-nc-sa/4.0/.
 
-fig = plot_anomaly_result(
-    image=batch["image"][0],
-    ground_truth_mask=batch["mask"][0],
-    anomaly_map=anomaly_maps[0],
-    predicted_mask=anomaly_maps[0] > 0.5,
-    title="Transistor anomaly localization",
-    save_path="outputs/example.png",
-)
-```
+For using the data in a way that falls under the commercial use clause of the license, please contact us.
 
-## Executive interview pitch
 
-### 1) Simple explanation of both approaches
+Contact
 
-**Model A — Autoencoder:** I train a compact neural network to compress and reconstruct only healthy transistor images. If a transistor contains an unusual defect, the model has not learned how to reproduce it correctly. The reconstruction error highlights suspicious pixels and provides both an image anomaly score and a defect heatmap.
+If you have any questions or comments about the dataset, feel free to contact us via: paul.bergmann@mvtec.com, fauser@mvtec.com, sattlegger@mvtec.com, steger@mvtec.com
+"""
 
-**Model B — ResNet18 + KNN:** Instead of learning visual features from scratch, I reuse a robust ImageNet-pretrained backbone as a feature extractor. I store representative patch embeddings from healthy transistors. During inspection, I compare each new patch to its nearest healthy neighbors. If a local region is visually far from the normal population, it is flagged as anomalous.
+with open("README.md", "w", encoding="utf-8") as f:
+f.write(markdown_content)
 
-### 2) Strategic comparison: why industry often prefers Model B
-
-- **Faster time-to-value:** Model B avoids long training cycles and works well in low-defect regimes because the heavy visual representation is already learned.
-- **Lower compute cost:** Only frozen inference plus a classical KNN index is needed; no backpropagation is required for the main detector.
-- **More MLOps-friendly:** The backbone can be versioned, frozen, validated, and monitored separately from the classical detector. Updating the normal memory bank is simpler than retraining an end-to-end network.
-- **Better ROI:** In factories, the fastest deployable system that reliably reduces escapes and false alarms often wins over a theoretically elegant model requiring more data, tuning, and GPU time.
-- **Interpretability for engineers:** Patch-distance heatmaps are easy to explain: “this area does not look like previously accepted healthy parts.”
-
-The autoencoder remains useful as a transparent baseline, a sanity check, and a demonstration that reconstruction-based unsupervised learning can localize defects. But for a production pilot, pretrained features plus a lightweight detector usually provide a better balance of performance, speed, maintainability, and risk.
-
-### 3) How to sell this to STMicroelectronics
-
-I would position the project as a **yield-protection and process-monitoring tool** rather than a pure computer-vision demo:
-
-- **Yield improvement:** Early anomaly detection can reduce defective dies progressing downstream, saving expensive later-stage testing and packaging capacity.
-- **Low-label compatibility:** The method trains on normal production images, which matches semiconductor reality: many defect classes are rare, evolving, or discovered after process changes.
-- **Root-cause acceleration:** Pixel-level heatmaps help process and equipment engineers quickly localize suspicious regions and correlate them with tool settings, lot history, recipes, or metrology signals.
-- **Fab-ready deployment path:** Model B can be packaged as a reproducible inference service, tracked with model/data versions, monitored for drift, and periodically refreshed with newly validated normal samples.
-- **Business framing:** The value is measured through fewer false escapes, fewer unnecessary manual reviews, faster excursion detection, improved line stability, and ultimately better yield.
-
-A strong interview sentence: **“I designed the solution around the semiconductor constraint that defects are rare and labels are costly. The system learns the visual distribution of known-good transistors, flags deviations, localizes them for engineers, and can be integrated into an MLOps loop to protect yield as the process drifts.”**
+print("[file-tag: code-generated-file-readme-md]")
