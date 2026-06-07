@@ -28,7 +28,7 @@ def evaluate_autoencoder(
 
     scores, labels, masks, maps = [], [], [], []
 
-    output_dir = Path("outputs/ae_visualizations")
+    output_dir = Path("outputs/visualizations")
     output_dir.mkdir(parents=True, exist_ok=True)
 
     sample_index = 0
