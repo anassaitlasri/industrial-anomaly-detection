@@ -18,22 +18,56 @@ def evaluate_autoencoder(
     test_loader: DataLoader,
     device: torch.device,
     pixel_threshold: float | None = None,
-) -> tuple[EvaluationResult, dict[str, np.ndarray]]:
-    """Evaluate an autoencoder using reconstruction-error anomaly maps."""
+):
+
+    from pathlib import Path
+
+    from mvtec_ad.visualization import plot_anomaly_result
 
     model.to(device).eval()
+
     scores, labels, masks, maps = [], [], [], []
+
+    output_dir = Path("outputs/ae_visualizations")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    sample_index = 0
+
     for batch in tqdm(test_loader, desc="Evaluate AE", leave=False):
+
         images = batch["image"].to(device, non_blocking=True)
+
         anomaly_maps = model.anomaly_map(images).cpu()
-        image_scores = anomaly_maps.flatten(start_dim=1).mean(dim=1)
+
+        image_scores = anomaly_maps.flatten(start_dim=1).amax(dim=1)
+
         scores.append(image_scores.numpy())
         labels.append(batch["label"].numpy())
         masks.append(batch["mask"].numpy())
         maps.append(anomaly_maps.numpy())
 
+        predicted_masks = anomaly_maps > 0.5
+
+        for i in range(len(images)):
+
+            plot_anomaly_result(
+                image=images[i].cpu(),
+                ground_truth_mask=batch["mask"][i],
+                anomaly_map=anomaly_maps[i],
+                predicted_mask=predicted_masks[i],
+                title=f"Label={batch['label'][i].item()}",
+                save_path=output_dir / f"sample_{sample_index}.png",
+            )
+
+            sample_index += 1
+
     predictions = _stack_predictions(scores, labels, masks, maps)
-    result = evaluate_predictions(pixel_threshold=pixel_threshold, **predictions)
+
+    result = evaluate_predictions(
+        pixel_threshold=pixel_threshold,
+        **predictions,
+    )
+
     return result, predictions
 
 

@@ -34,10 +34,23 @@ class ResNet18FeatureExtractor(nn.Module):
 
     @torch.no_grad()
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+
         x = self.stem(x)
+
         x = self.layer1(x)
-        x = self.layer2(x)
-        return self.layer3(x)
+
+        f2 = self.layer2(x)
+
+        f3 = self.layer3(f2)
+
+        f2 = F.interpolate(
+            f2,
+            size=f3.shape[-2:],
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        return torch.cat([f2, f3], dim=1)
 
 
 class ResNetPatchKNNDetector:
@@ -59,7 +72,7 @@ class ResNetPatchKNNDetector:
         self.n_neighbors = n_neighbors
         self.max_memory_patches = max_memory_patches
         self.random_state = random_state
-        self.knn = NearestNeighbors(n_neighbors=n_neighbors, metric="euclidean")
+        self.knn = NearestNeighbors(n_neighbors=n_neighbors, metric="cosine")
         self.is_fitted = False
 
     def fit(self, train_loader: DataLoader, device: torch.device) -> None:
