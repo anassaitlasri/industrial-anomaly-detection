@@ -30,7 +30,7 @@ The project systematically explores three paradigms, moving from a standard Deep
   - **Spatial Smoothing**: Applied 3x3 Average Pooling to incorporate local context and reduce noise.
   - **Greedy K-Center Coreset**: Instead of storing 200,000+ random patches, the system uses a greedy min-max algorithm (with Johnson-Lindenstrauss random projection) to select only the 10,000 most diverse and representative healthy patches.
   - **Faiss Integration**: Replaced standard KNN with Meta's `faiss-cpu` (L2 Index) to ensure microsecond-level inference latency and minimal RAM footprint.
-- **Outcome**: `AUROC: 0.965`, `Pixel Dice: ~23%`.
+- **Outcome**: `AUROC: 0.956`, `Pixel Dice: ~23%`.
 - **Analysis**: State-of-the-art detection accuracy. The Coreset algorithm successfully reduced the memory footprint by 95% while simultaneously eliminating false positives, resulting in a lightweight model perfect for high-speed production lines.
 
 ## 📊 Performance Summary
@@ -39,7 +39,7 @@ The project systematically explores three paradigms, moving from a standard Deep
 |------------------|-------------|----------|------------|-----------------------------|
 | Conv Autoencoder | 0.567       | 0.585    | 0.033      | High (Heavy training)       |
 | ResNet18 + KNN   | 0.929       | 0.888    | 0.090      | ~50k patches (Random)       |
-| **PatchCore (Optimized)** | **0.965** | **0.915**| **0.226** | **10k patches (Coreset)** |
+| **PatchCore (Optimized)** | **0.956** | **0.915**| **0.226** | **10k patches (Coreset)** |
 
 ## 👁️ Visual Results
 
